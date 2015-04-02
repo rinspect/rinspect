@@ -4,6 +4,12 @@ framework for handling C code written for the Linux/PThreads
 platform. It could support SC-MODE, TSO-MODE AND PSO-MODE. If test
 programs has loop, it should have bounded.
 
+#testing version
+Thie version is tested on Linux 32bit machine.
+MAKEFILE CHANGES, PATH AND INSPCC
+BENCHMARKS PACKAGE CHANGES
+CHANGE README, TESTING MACHINE
+
 
 ## Requirements
 Download the project source code from : https://github.com/Rinspect
@@ -108,7 +114,7 @@ WMM. This includes a Makefile to automatically run the testing set.
 
 
 ## Litmus for Rinspect
-121 small programs, including litmus tests for X86/TSO/PSO, standard
+121 small programs, including litmus tests for X86 TSO/PSO, standard
 c prgrams, which come from
 http://www.cprover.org/wmm/esop13/experiments.shtml.
 
@@ -116,7 +122,9 @@ http://www.cprover.org/wmm/esop13/experiments.shtml.
 
 
 ## Usage
-make clean;make check; #go to benchmarks directory, change some
-directory to your computer and run it.
+1. move fold regression-examples to src/examples/tso
+    mv -r regression-examples examples/tso/.
+2. go to directory tso, use cmd to run this test set:
+    make clean;make check; #
 
 
