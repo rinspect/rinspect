@@ -1,6 +1,6 @@
 # FileName	[ Makefile ]
 #
-# PackageName	[ regression_example ]
+# PackageName	[ regression_examples ]
 #
 # Synopsis	[ Regression Test ]
 #
