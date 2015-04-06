@@ -1,0 +1,18 @@
+/CMakeLists.txt/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombine.h/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombineAddSub.cpp/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombineAndOrXor.cpp/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombineCalls.cpp/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombineCasts.cpp/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombineCompares.cpp/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombineLoadStoreAlloca.cpp/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombineMulDivRem.cpp/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombinePHI.cpp/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombineSelect.cpp/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombineShifts.cpp/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombineSimplifyDemanded.cpp/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombineVectorOps.cpp/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstCombineWorklist.h/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/InstructionCombining.cpp/1.1.1.1/Mon Feb 20 23:44:21 2012//
+/Makefile/1.1.1.1/Mon Feb 20 23:44:21 2012//
+D

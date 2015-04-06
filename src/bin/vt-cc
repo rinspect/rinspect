@@ -1,0 +1,192 @@
+#!/bin/bash -x
+set -e
+
+
+bindir=`dirname $(readlink -f $0)`
+
+TAP_PATH=`readlink -f $bindir/..`
+
+CLAP_LIB_PATH="$TAP_PATH/clap/lib/"
+SMTDP_LIB_PATH="$TAP_PATH/smt_dp/lib/"
+YICES_LIB_PATH="$TAP_PATH/yices-1.0.39/lib/"
+
+CFLAGS="-g"
+OPT_FLAG="-load=$TAP_PATH/build/Release+Debug+Asserts/lib/LLVMTAP.so"
+OPT_FLAG="$OPT_FLAG -basicaa"
+OPT_FLAG="$OPT_FLAG -tap_inst_number"
+OPT_FLAG="$OPT_FLAG -tap_pthreads"
+OPT_FLAG="$OPT_FLAG -tap_mem"
+
+LDFLAGS="$LDFLAGS -Wl,-rpath,$CLAP_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-rpath-link,$CLAP_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-L,$CLAP_LIB_PATH"
+
+LDFLAGS="$LDFLAGS -Wl,-rpath,$SMTDP_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-rpath-link,$SMTDP_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-L,$SMTDP_LIB_PATH"
+
+LDFLAGS="$LDFLAGS -Wl,-rpath,$YICES_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-rpath-link,$YICES_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-L,$YICES_LIB_PATH"
+
+CMD_CLANG="$TAP_PATH/install/bin/clang"
+CMD_OPT="$TAP_PATH/install/bin/opt"
+CMD_LLVMDIS="$TAP_PATH/install/bin/llvm-dis"
+CMD_LLC="$TAP_PATH/install/bin/llc"
+CMD_GPP="gcc"
+
+for l in clap smtdp yices pthread rt m stdc++ 
+do
+    LDFLAGS="$LDFLAGS -l$l"
+done
+
+
+args="$@"
+USAGE="Usage: `basename $0` [-o arg] args"
+# we want to handle [-o arg] 
+if [ $# -eq 0 ]; then
+  echo $USAGE >&2
+  exit 1
+fi
+
+#-----------------------------------------------------
+#	Parse Command Line (only the arguments we care about)
+#-----------------------------------------------------
+OUTPUT_FILE="a.out"
+INSTRUMENTED_FILES=""
+INPUT_FILES=()
+INPUT_FILE=""
+SAVE_TMP=0
+MORE_ARGS="-g "
+MF_ARGS=""
+INTERMEDIATE_FILES=()
+E_ARG=0
+C_ARG=0
+O_ARG=0
+
+while [ $# -gt 0 ] 
+do
+	
+	t=${1/%*.c/cc}
+#	t=${t/%*.cpp/cc}
+#	t=${t/%*.cxx/cc}
+#	t=${t/%*.c++/cc}
+#	t=${t/%*.C/cc}
+	case $t in
+		cc)
+			INPUT_FILES=( "${INPUT_FILES[@]}" "$1" ) 
+                        INPUT_FILE=${1/%.c}
+			shift 1
+		;;
+		-o) 
+			shift 1
+                        O_ARG=1
+			OUTPUT_FILE=$1
+			shift 1
+		;;
+		-E)
+			E_ARG=1
+	    		MORE_ARGS=$MORE_ARGS\ $1
+	    		shift 1
+		;;
+		-c)
+			C_ARG=1
+	    		MORE_ARGS=$MORE_ARGS\ $1
+	    		shift 1
+		;;
+		-MF)
+			MF_ARGS=$MF_ARGS\ $1
+			shift 1
+			MF_ARGS=$MF_ARGS\ $1
+			shift 1
+		;;
+		-MD)
+			MF_ARGS=$MF_ARGS\ $1
+			shift 1
+		;;
+		-MMD)
+			MF_ARGS=$MF_ARGS\ $1
+			shift 1
+		;;
+    		--savetmp)
+			SAVE_TMP=1
+	    		shift 1
+		;;
+		*)
+                        CURR_STR=$(echo $1 | sed 's/ //g')
+	    		MORE_ARGS=$MORE_ARGS\ $CURR_STR
+	    		shift 1
+		;;
+	esac 	
+done
+
+if [ $C_ARG = 1 ]; then
+    if [ $O_ARG = 0 ]; then
+        OUTPUT_FILE=$INPUT_FILE.o
+    fi
+fi
+
+echo "MORE_ARGS= $MORE_ARGS"
+echo "INPUT_FILES= $INPUT_FILES"
+echo "MF_ARGS= $MF_ARGS"
+
+#-----------------------------------------------------
+#	End Parse Command Line 
+#-----------------------------------------------------
+
+#-----------------------------------------------------
+#	Add and Delete Temp Files
+#-----------------------------------------------------
+function add_file_to_intermediate {
+    INTERMEDIATE_FILES=( "${INTERMEDIATE_FILES[@]}" "$1" ) 
+}
+function delete_temp_files {
+    if [ $SAVE_TMP = 0 ]; then
+    	for i in ${INTERMEDIATE_FILES[@]} ; do
+	    rm $i
+	done
+    fi	
+}
+
+#-----------------------------------------------------
+#	Function Instrument Input File
+#-----------------------------------------------------
+function translate_input_file {
+    local INPUT_FILE=$1 
+    local OUT="$1.lz" 
+
+    $CMD_CLANG -emit-llvm -c $MORE_ARGS $MF_ARGS -o $OUT.bc     $INPUT_FILE
+    $CMD_OPT        -instnamer                   -o $OUT.ins.bc $OUT.bc
+    $CMD_OPT        $OPT_FLAG                    -o $OUT.opt.bc $OUT.ins.bc
+    $CMD_LLVMDIS                                 -o $OUT.opt.ll $OUT.opt.bc
+    $CMD_LLC                                     -o $OUT.s      $OUT.opt.bc
+
+    INSTRUMENTED_FILES="$INSTRUMENTED_FILES $OUT.s"
+
+    add_file_to_intermediate $OUT.bc
+    add_file_to_intermediate $OUT.ins.bc
+    add_file_to_intermediate $OUT.opt.bc
+    add_file_to_intermediate $OUT.opt.ll
+    add_file_to_intermediate $OUT.s
+}
+
+
+#-----------------------------------------------------
+#	Script Body
+#-----------------------------------------------------
+if [ $E_ARG = 0 ]; then
+    for i in ${INPUT_FILES[@]} ; do
+	if [ $i != "" ]; then
+	    translate_input_file $i           
+	fi
+    done
+    $CMD_GPP    -o $OUTPUT_FILE $INSTRUMENTED_FILES  $MORE_ARGS $LDFLAGS
+    delete_temp_files
+else
+    $CMD_GPP -E -o $OUTPUT_FILE ${INPUT_FILES[@]}    $MORE_ARGS $LDFLAGS
+fi
+#-----------------------------------------------------
+#	End Script Body
+#-----------------------------------------------------
+
+

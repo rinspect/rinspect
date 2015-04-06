@@ -1,0 +1,23 @@
+#define NLZ_NO_DPOR
+#define NLZ_NO_SLEEPSET
+/**/
+#define NLZ_ATOMIC
+#define NLZ_BBOUND
+#define NLZ_PSO
+
+/**/
+#define NLZ_FLAG//
+
+#ifdef NLZ_FLAG
+#define NLZ_EVEC      // extend (tid, event) to (tid, vector<InspectEvent>) in transitionset
+#define NLZ_COMM      // modification on communication to deal with vector enable
+#define NLZ_DEBUG
+
+//#define NLZ_PREL      // potential hb-cycle approch of relax checking, need to remove from new one
+
+#endif
+
+
+
+#include "debug.hpp"
+

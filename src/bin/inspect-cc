@@ -1,0 +1,38 @@
+#!/bin/bash -x
+set -e
+
+bindir=`dirname $(readlink -f $0)`
+
+TAP_PATH=`readlink -f $bindir/..`
+
+INSPECT_LIB_PATH="$TAP_PATH/inspect-0.3/lib/"
+
+CFLAGS="-g"
+OPT_FLAG="-load=$TAP_PATH/build/Release+Debug+Asserts/lib/LLVMTAP.so"
+OPT_FLAG="$OPT_FLAG -tap_inst_number"
+OPT_FLAG="$OPT_FLAG -basicaa"
+OPT_FLAG="$OPT_FLAG -tap_mem"   
+OPT_FLAG="$OPT_FLAG -tap_pthreads"
+
+LDFLAGS="$LDFLAGS -Wl,-rpath,$INSPECT_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-rpath-link,$INSPECT_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-L,$INSPECT_LIB_PATH"
+
+for l in  inspect pthread rt m stdc++ 
+do
+    LDFLAGS="$LDFLAGS -l$l"
+done
+
+
+$TAP_PATH/install/bin/clang $CFLAGS    -emit-llvm -c -o $1.bc   $1.c
+
+$TAP_PATH/install/bin/opt   -instnamer              -o $1.ins.bc $1.bc
+
+$TAP_PATH/install/bin/opt   $OPT_FLAG               -o $1.opt.bc $1.ins.bc
+
+$TAP_PATH/install/bin/llc                           -o $1.s      $1.opt.bc
+
+$TAP_PATH/install/bin/llvm-dis       $1.opt.bc
+
+gcc -g $1.s $LDFLAGS -o $1.exe
+

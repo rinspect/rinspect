@@ -1,0 +1,1145 @@
+//===- TAP_InstrumentInstTraceGen.cpp - "LLVM Pass for Calls" ---------------------===//
+//
+//                     The LLVM Compiler Infrastructure
+//
+// This file is distributed under the University of Illinois Open Source
+// License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+//
+// Author: Chao Wang <chaowang@vt.edu>
+//         Bing Liu
+// Date: 7-16-2012
+//
+//===----------------------------------------------------------------------===//
+
+#define DEBUG_TYPE "chao"
+#include <map>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <cxxabi.h>
+#include "llvm/Pass.h"
+#include "llvm/LLVMContext.h"
+#include "llvm/Module.h"
+#include "llvm/DerivedTypes.h"
+#include "llvm/Function.h"
+#include "llvm/Instructions.h"
+#include "llvm/IntrinsicInst.h"
+#include "llvm/Constants.h"
+#include "llvm/Value.h"
+#include "llvm/Type.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Target/TargetData.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/CommandLine.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+
+//This header file defined the class of branch State <bState>;
+#include <SymTAP.h>
+#include <stack>
+#include <vector>
+
+//chao, this is a hack
+#include "../../../../smt_dp/yices_dp.hh"
+
+#define DBG_MSG(A)  errs()<< "warning in file: " << __FILE__ << ", line: " \
+  << __LINE__ << " : " << (A)                                           
+
+using namespace llvm;
+
+STATISTIC(ModuleCounter, "Counts number of modules greeted");
+
+static cl::opt<std::string> 
+InputTraceFile("tap-tgen-in", cl::init(""),
+               cl::desc("Specify TAP inst id trace input filename"));
+
+static cl::opt<std::string>
+OutputTraceFile("tap-tgen-out", cl::init(""),
+               cl::desc("Specify TAP inst trace output filename"));
+
+static cl::opt<int>
+DebugLevel("tap-tgen-dbg", cl::init(0),
+               cl::desc("Specify TAP inst trace debug flag"));
+
+static cl::opt<std::string>
+TargetExeName("tap-tgen-target", cl::init(""),
+               cl::desc("Specify TAP inst generated exe name"));
+
+
+namespace {
+
+struct TAP_InstrumentInstTraceGen : public ModulePass {
+
+  static char ID; 
+
+  static int havoc_v_cnt;
+
+  //mapping from inst.clap_id to Instruction*
+  std::map<int, Instruction*> id_to_inst_table;
+  //
+  std::vector<int> tid_Trace;
+  std::vector<int> id_Trace;
+  std::vector<int> stat_Trace;
+  //
+  std::vector<Instruction*> inst_Trace;
+
+  std::vector<bState> branch_list;
+  bool flag;
+  int tc_rank;      // the index of the generated test case file;
+  
+
+  TAP_InstrumentInstTraceGen() : ModulePass(ID) {}
+
+  virtual bool runOnModule(Module &M) {
+    ++ModuleCounter;
+    errs() << "TAP_InstrumentInstTraceGen : ";
+    errs().write_escaped(M.getModuleIdentifier()) << '\n';
+
+      TAP_declareAssumeFunction(M);
+      TAP_createIdToInstructionMap(M);
+
+      //provide a initial execution chance for the loop
+      bState init_bState;
+      init_bState.index = 1;
+      init_bState.bEnable.clear();
+      branch_list.push_back(init_bState);
+
+      tc_rank = 0;                   // the generated test case folder will be test case1, test case2, test case3 etc.
+
+      //while(!branch_list.empty()){                              
+        if(branch_list.back().bEnable.empty()){
+          branch_list.pop_back();
+          errs()<<"Cleared!!!"<<"\n";
+        }
+
+
+        TAP_readIdTraceFromFile(M);
+        TAP_convertIdTraceToInstructionTrace(M);
+        TAP_outputInstructionTrace(M);
+        TAP_traceSymbolicExecution(M);
+
+        //restore the generated test case file;
+        system("cp out.txt tap.input.txt");
+
+        /*
+        // convert an integer into string
+        string buffer;
+        ostringstream convert;
+        convert << ++tc_rank;
+        buffer = convert.str();
+
+        string dir_cmd = "mkdir test_case_" + buffer;
+        system(dir_cmd.c_str());
+
+        string des_dir = "cp tap.input.txt ./test_case_" + buffer;
+        system(des_dir.c_str());                              // miss the first havoc value;
+        */
+
+        TAP_deleteInstructionTrace(M);
+        
+
+        /*
+      //clear all the record for previous execution;
+        inst_Trace.clear();
+        tid_Trace.clear();
+        id_Trace.clear();
+        stat_Trace.clear();
+	      havoc_v_cnt = 0;
+
+      //system("./*.exe; cp trace.txt in.txt");            
+        string cmd = "./" + TargetExeName + ".exe; cp trace.txt in.txt";
+        system(cmd.c_str());
+
+      errs()<<" The size of branch_list at last: "<<branch_list.size()<<"\n";
+      */
+    //}                           //comment for test call function
+      
+    return false;
+  }
+
+  bool TAP_mayEscape(Instruction *I);
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+    AU.addRequiredTransitive<AliasAnalysis>();
+  }
+
+
+  int TAP_getMetadataValue(Instruction *I, std::string kind) {
+    //Bing: what's this for?
+    if (MDNode *N = I->getMetadata(kind.c_str())) {
+      Value *vid = N->getOperand(0);
+      if (ConstantInt* cid = dyn_cast<ConstantInt>(vid)) {
+        int id = cid->getLimitedValue();
+        return id;
+      }
+    }
+    return -1; // illegal value
+  }
+
+  void TAP_createIdToInstructionMap(Module &M) {
+    // building the map from inst ID to Instruction*
+    for (Module::iterator F = M.begin(); F != M.end(); F++) {
+      for (Function::iterator B = F->begin(); B != F->end(); B++) {
+        for (BasicBlock::iterator I = B->begin(); I != B->end(); I++) {
+          int id = TAP_getMetadataValue(I,"clap");
+
+          if (id >= 0) {
+            id_to_inst_table[id] = I;
+            
+            if (DebugLevel > 0) {
+              errs() << "inst[" << id << "] = ";
+              I->print(errs());  
+              errs() << "\n";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  void TAP_readIdTraceFromFile(Module &M) {
+    
+    // reading the ID trace from the input file
+    std::ifstream Input(InputTraceFile.c_str());
+
+    if (Input.good()) {
+      
+      while (!Input.eof()) {
+        std::string s_tid, s_inst_id, s_stat;
+        Input >> s_tid >> s_inst_id >> s_stat;
+        if (s_tid != "" && s_inst_id != "" && s_stat != "") {
+          int tid  = atoi(s_tid.c_str());
+          int inst_id = atoi(s_inst_id.c_str());
+          int stat = atoi(s_stat.c_str());
+          tid_Trace.push_back(tid);
+          id_Trace.push_back(inst_id);
+          stat_Trace.push_back(stat);
+
+          if (DebugLevel > 0) {
+            errs() << s_tid << " " << s_inst_id << " " << s_stat << "\n";
+          }
+        }
+      }
+    }
+  }
+
+  std::map<int,std::vector<std::string> > thread_2_call_stack;
+  std::map<int,std::vector<Value*> > thread_2_retv_stack;
+  std::map<int,std::vector<std::map<Value*,Value*> > > thread_2_vmap_stack;
+
+  void TAP_thread_2_call_stack_init() {
+
+    thread_2_call_stack.clear();
+    thread_2_retv_stack.clear();
+    thread_2_vmap_stack.clear();
+
+    for (unsigned int i=0; i<tid_Trace.size(); i++) {
+      int tid = tid_Trace[i];
+
+      std::vector<std::string> call_stack;
+      call_stack.push_back("T" + itostr(tid) + ((tid==1)?"_main":""));
+      thread_2_call_stack[tid] = call_stack;
+
+      std::vector<Value*> retv_stack;
+      retv_stack.push_back(NULL);
+      thread_2_retv_stack[tid] = retv_stack;
+
+      std::vector<std::map<Value*,Value*> > vmap_stack;
+      vmap_stack.push_back( std::map<Value*,Value*>() );
+      thread_2_vmap_stack[tid] = vmap_stack;
+    }
+  }
+
+  void TAP_thread_2_call_stack_update(int tid, Instruction* I, Instruction* newI, int stat) {
+
+    std::vector<std::string>& call_stack = thread_2_call_stack[tid];
+    std::vector<Value*>& retv_stack = thread_2_retv_stack[tid];
+    std::vector<std::map<Value*,Value*> >& vmap_stack = thread_2_vmap_stack[tid];
+    
+    
+    if (CallInst* callI = dyn_cast<CallInst>(I)) {
+      
+      // skip the "clap_...()" and "tap_...()" functions
+      const char* fname = callI->getCalledFunction()->getName().data();
+      if ( strncmp(fname,"clap_",5) != 0 && strncmp(fname,"tap_",4) != 0 ) {
+
+        if (stat == 1) {
+          //This is the beginning of the call 
+          if (DebugLevel > 1)     errs() << "\n PUSH call stack\n";
+
+          call_stack.push_back(callI->getCalledFunction()->getName());
+          //thread_2_call_stack[tid] = call_stack;
+          retv_stack.push_back( callI->hasName()? callI:NULL );
+          //thread_2_retv_stack[tid] = retv_stack;
+          
+          // after entering the function, replace formal args with actual args
+          std::map<Value*,Value*> vmap;
+          CallInst* callNewI = dyn_cast<CallInst>(newI);
+          Function* func = callNewI->getCalledFunction();
+          for (Function::arg_iterator it = func->arg_begin(); it != func->arg_end(); it++) {
+            Argument* farg = it;
+            Value* aarg = callNewI->getOperand(farg->getArgNo());
+            vmap[farg] = aarg;
+
+            //debug:
+            errs()<<"The replacement relation : "<<it->getName()<<" <-------------------------------->"<<aarg->getName()<<"\n";
+            
+            if (DebugLevel > 1) {
+              errs() << "\n callI: "; callNewI->dump();
+              errs() << "\n farg: "; farg->dump(); 
+              errs() << "\n aarg: "; aarg->dump(); 
+            }
+          }
+          vmap_stack.push_back( vmap );
+        }     
+        else {
+
+          if (DebugLevel > 1) errs() << "\n POP call stack\n";
+
+          call_stack.pop_back();
+          //thread_2_call_stack[tid] = call_stack;
+          retv_stack.pop_back();
+          //thread_2_retv_stack[tid] = retv_stack;
+          vmap_stack.pop_back();
+          //thread_2_vmap_stack[tid] = vmap_stack;
+        }
+      }
+    }      
+    else if (ReturnInst* retI = dyn_cast<ReturnInst>(I)) {
+      assert(retI);
+      // after returning from the function, replace %call with the %retval
+      ReturnInst* retNewI = dyn_cast<ReturnInst>(newI);
+      Value* callval = TAP_thread_2_retv_stack_retv(tid);
+      Value* retval  = retNewI->getReturnValue();
+      if (callval) {
+        assert(retval);
+
+        //add the same return record to the former stack also;
+        std::map<Value*,Value*>& tmap = vmap_stack[vmap_stack.size()-2];     //should be size()-2;
+        std::map<Value*,Value*>& vmap = vmap_stack.back();                   //actually, back direct to the size()-1 stack;
+        vmap[callval] = retval;
+        tmap[callval] = retval;
+        //vmap[callval] = retI->getReturnValue();
+      }
+    }
+  }
+  
+  std::map<Value*,Value*>& TAP_thread_2_call_stack_vmap(int tid) {
+
+    std::vector<std::map<Value*,Value*> >& vmap_stack = thread_2_vmap_stack[tid];
+    return vmap_stack.back();
+  }
+
+  Value* TAP_thread_2_retv_stack_retv(int tid) {
+
+    std::vector<Value*>& retv_stack = thread_2_retv_stack[tid];
+    return retv_stack.back();
+  }
+
+  std::string TAP_thread_2_call_stack_prefix(int tid) {
+
+    std::vector<std::string>& call_stack = thread_2_call_stack[tid];
+    std::string call_stack_str = call_stack[0];
+    for (unsigned int j=1; j<call_stack.size();j++) {
+      call_stack_str =  (call_stack_str + "_" + call_stack[j]);
+    }
+    return call_stack_str;
+  }
+
+
+  void TAP_declareAssumeFunction(Module &M) {
+    LLVMContext &C = M.getContext();
+    FunctionType *FT = NULL;
+    {
+      Type *Result = Type::getVoidTy(C);
+      std::vector<Type*> Params;
+      Type *Cond = IntegerType::getInt1Ty(C);
+      Type *Stat = IntegerType::getInt1Ty(C);
+      Params.push_back(Cond);
+      Params.push_back(Stat);
+      FT = FunctionType::get(Result, Params, false);
+    }
+    M.getOrInsertFunction("clap_assume"  , FT);
+
+  }
+
+
+  CallInst* TAP_createAssumeCallInst(Module &M, Value* cond0, int stat0) {
+
+    LLVMContext &C = M.getContext();
+    Value *preFunc  = M.getFunction("clap_assume");
+
+    Value* cond = (cond0 ? cond0: ConstantInt::get(C,APInt(1,1)));
+    Value* stat = ConstantInt::get(C,APInt(1,stat0));
+
+    std::vector<Value*> Args;
+    Args.push_back( cond );
+    Args.push_back( stat );
+    CallInst* I  = CallInst::Create(preFunc, Args);
+
+    return I;
+  }
+
+
+
+  Instruction* TAP_createInstInstance(Module &M, int tid, Instruction* I, int stat) {
+
+    Instruction* newI = NULL;
+    
+
+    if (BranchInst* brI = dyn_cast<BranchInst>(I)) {
+      //call @clap_assume(%br_cond)
+      Value *cond = (brI->isConditional()? brI->getCondition(): NULL) ;
+      newI = TAP_createAssumeCallInst(M, cond, stat); 
+    }
+    else {
+      newI = I->clone();
+    }
+
+    std::map<Value*,Value*>& vmap = TAP_thread_2_call_stack_vmap(tid);
+
+    for (std::map<Value*,Value*>::iterator it=vmap.begin();it!=vmap.end();it++) {
+      Value* From = it->first;
+      Value* To   = it->second;
+      newI->replaceUsesOfWith(From, To);
+      errs()<<"The old and new name is: " << it->first->getName()<<"<-------->"<<it->second->getName()<<"\n";
+    }
+
+    if (I->hasName()) {
+      std::string v_prefix = TAP_thread_2_call_stack_prefix(tid);
+      newI->setName( v_prefix + "_" + I->getName());
+      vmap[I] = newI;
+    }
+
+    if (DebugLevel > 1) {
+      errs() << "\n chao print I    : "; I->print(errs()); errs() << "";
+      errs() << "\n chao print newI : "; newI->print(errs()); errs() << "\n";
+    }
+
+    return newI;
+  }
+
+    
+  void TAP_convertIdTraceToInstructionTrace(Module &M) {
+
+    TAP_thread_2_call_stack_init();
+
+    for (unsigned int i = 0; i<id_Trace.size(); i++) {
+
+      int tid = tid_Trace[i];
+      int id  = id_Trace[i];
+      int stat  = stat_Trace[i];
+
+      Instruction* I = id_to_inst_table[id];
+
+      if(BranchInst* brI = dyn_cast<BranchInst>(I)){
+          if(brI->isConditional()){
+            if(branch_list.empty()){
+
+              bState brs;
+              brs.index = id;
+              brs.bEnable.insert("true");
+              brs.bEnable.insert("false");
+              brs.bDone.insert("true");
+
+              // operate the vector;
+              branch_list.push_back(brs);
+            }
+	           else{
+              vector<bState>::iterator it;
+
+              for(it = branch_list.begin(); it < branch_list.end(); it++){
+
+                if((*it).index == id){
+                  flag = true;
+                  break;
+                }
+                else{
+                  flag = false;
+                }
+               }   // end of for;
+
+	             if(!flag){
+		            bState nbrs;
+		            nbrs.index = id;
+		            nbrs.bEnable.insert("true");
+		            nbrs.bEnable.insert("false");
+		            nbrs.bDone.insert("true");
+
+                // For vector operation
+                branch_list.push_back(nbrs);
+	             }
+	           }
+          }
+        }
+
+      Instruction* newI = TAP_createInstInstance(M, tid, I, stat);
+      TAP_thread_2_call_stack_update(tid, I, newI, stat);
+
+      inst_Trace.push_back(newI);
+    }
+
+    //debug:
+    //errs()<<" The updated size of state_stack: "<<state_stack.size()<<"\n";
+    //errs()<<" and the top bState.index is: "<<state_stack.top().index<<"\n";
+    //F->dump();
+
+  }
+
+
+
+  void TAP_outputInstructionTrace(Module &M) {
+      if (DebugLevel > 0) {
+      for (unsigned int i = 0; i<inst_Trace.size(); i++) {
+        Instruction* I = inst_Trace[i];
+        errs() << "trace[" << i << "] = ";
+        errs() << "t" << tid_Trace[i] << "   ";
+        errs() << id_Trace[i] << "    ";
+        I->print(errs());  
+        errs() << "\n";
+      }
+    }
+  }
+
+  void TAP_deleteInstructionTrace(Module &M) {
+    
+    //if we don't, OPT will complain and won't exit properly!
+    
+    for (unsigned int i=inst_Trace.size(); i>0; i--) {
+      Instruction* I = inst_Trace[i-1];
+      if (I) {
+        delete I;
+      }
+    }
+  }
+
+  void TAP_writeSatResultToFile(YicesDP* yices) {
+    
+    std::string ErrMsg;
+    raw_fd_ostream Output(OutputTraceFile.c_str(), ErrMsg, 0);
+
+    //OutputTraceFile is the destination file: out.txt;
+    //write the havoc value into the out.txt;
+
+    if (!ErrMsg.empty()) {
+      errs() << "\n warning: '" << OutputTraceFile << "' already exists!\n";
+    }
+    else {
+      yices_model m = yices_get_model(yices->get_context());
+      assert(m);
+      
+      for (int i=1; i<= havoc_v_cnt; i++) {
+
+        //char name[64];
+        //printf(name, "havoc_v%d", i);
+
+        stdstring name = ("havoc_v" + itostr(i));
+
+        yices_var_decl yvd = yices_get_var_decl_from_name(yices->get_context(), name.c_str());
+        long c; 
+        double dc;
+        if (yices_get_int_value(m, yvd, &c)) 
+          Output << name << " = " << (int)c << "\n";
+        else if (yices_get_double_value(m, yvd, &dc)) 
+          Output << name << "  =  " << (double)c << "\n";
+        else {
+          lbool val = yices_get_value(m, yvd);
+          if (val==l_false)
+            Output << name << "  =  " << "0"<< "\n";
+          else if (val==l_true)
+            Output << name << "  =  " << "1"<< "\n";
+          else 
+            Output << name << "  =  " << "undef"<< "\n";
+        }
+      }
+    }
+  }
+
+  void TAP_traceSymbolicExecution(Module &M) {
+
+    //initialize the SMT solver
+    YicesDP* yices = new YicesDP();
+    yices->set_default_var_type(YicesDP::INTty);
+
+
+    //build the SMT formula
+    vector<assertion_id> assert_ids;
+    for (unsigned i = 0; i<inst_Trace.size(); i++) {
+      Instruction* I = inst_Trace[i];
+      YicesDP::expr E = TAP_constructSMTExprForInstruction(yices, I);
+      assertion_id assert_id = yices->assert_retract_dp(E);
+      assert_ids.push_back(assert_id);
+    }
+
+    //Debug:
+    yices->get_sat_result();
+    yices->show_sat();
+
+    //find the last assume cond that can be negated
+    for (unsigned i=inst_Trace.size(); i>0; i--) {
+
+      Instruction* I = inst_Trace[i-1];
+      assertion_id assert_id = assert_ids[i-1];
+      yices->retract(assert_id);
+
+      if (TAP_isClapFunction(I,(const char*)"clap_assume")) {
+        //negate the assume cond
+        YicesDP::expr cond = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+        YicesDP::expr flag = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+        YicesDP::expr E = yices->mk_diseq(cond, flag);
+        assertion_id assert_id2 = yices->assert_retract_dp(E);
+        if (yices->get_sat_result()) {
+          errs() << "\n found input to negate assume: E(" << i << ")\n";
+          I->dump();
+          errs() << "\n";
+
+          //if the conditional statement has not negated, we negate it and mark is in bDone;
+          //if the conditional statement has been negated, we delete it from state_stack;          
+          if(branch_list.back().bDone.size() == 2){
+
+            branch_list.pop_back();
+
+            if(branch_list.empty())
+              break;
+          }
+          else{
+            branch_list.back().bDone.insert("false");
+
+            TAP_writeSatResultToFile(yices);
+
+            if (DebugLevel > 0) {
+              yices->show_sat();
+            }
+
+            break;
+          
+          }          //maybe when the state_stack is empty will lead a problem?
+
+        }
+        //if all the branching statement is deleted, whether here will give us a warning or error?
+        yices->retract(assert_id2);
+      }
+
+    }
+    //free up the SMT solver
+    delete yices;
+  }
+
+
+  YicesDP::Typ TAP_getVarType(Type* typ) {
+
+    YicesDP::Typ ty = YicesDP::INTty;
+
+    switch (typ->getTypeID()) {
+
+    case Type::VoidTyID:  assert(0); break;
+//    case Type::HalfTyID:  assert(0); break;
+    case Type::FloatTyID:  {
+      //Bing;
+      ty = YicesDP::REALty;
+      break;
+    }
+    case Type::DoubleTyID: {
+      //Bing;
+      ty = YicesDP::REALty;
+      break;
+    }
+    case Type::X86_FP80TyID: assert(0); break;
+    case Type::FP128TyID: assert(0); break;
+    case Type::PPC_FP128TyID: assert(0); break;
+    case Type::LabelTyID: assert(0); break;
+    case Type::MetadataTyID: assert(0); break;
+    case Type::X86_MMXTyID: assert(0); break;
+
+    case Type::IntegerTyID: {
+      unsigned num_bit = ((IntegerType*)typ)->getBitWidth();
+      if (num_bit == 1)
+        ty = YicesDP::BOOLty;
+      else{
+        ty = YicesDP::INTty; 
+      }                          // Do the bit vector rewrite here!
+      break;
+    }
+    case Type::FunctionTyID: assert(0); break;
+    case Type::StructTyID: assert(0); break;
+    case Type::ArrayTyID: assert(0); break;
+
+    case Type::PointerTyID: 
+      ty = YicesDP::INTty; 
+      break;
+
+    case Type::VectorTyID: assert(0); break;
+    case Type::NumTypeIDs: assert(0); break;
+      //case Type::LastPrimitiveTyID: assert(0); break;
+      //case Type::FirstDerivedTyID: assert(0); break;
+    default: assert(0); break;
+    }
+
+    return ty;
+  }
+
+  YicesDP::expr TAP_constructSMTExprForValue(YicesDP* yices, Value* V) {
+
+    YicesDP::expr res;
+    assert( V );
+    //V->dump();
+
+    YicesDP::Typ ty = TAP_getVarType( V->getType() );
+
+    if (V->hasName()) {
+      stdstring nam = V->getName();
+      res = yices->mk_var(nam, ty);
+    }
+    else if (GlobalValue* gv = dyn_cast<GlobalValue>(V)) {
+      //check @Num here!!!
+      assert(gv);
+      assert(0);
+    }
+    else if (ConstantInt* ci = dyn_cast<ConstantInt>(V)) {
+      uint64_t val = ci->getValue().getLimitedValue();
+      if (ty == YicesDP::BOOLty) 
+        res = (val == 0)? yices->mk_false(): yices->mk_true();
+      else
+        res = yices->mk_num_int(val);
+    }
+    else if (ConstantFP* cf = dyn_cast<ConstantFP>(V)) {
+      double val = cf->getValueAPF().convertToDouble();
+      res = yices->mk_num_real(val,0);
+    }
+    else {
+      assert(0 && "unknown type of Value");
+      //res = TAP_constructSMTExprForConstant(C);
+    }
+
+    return res;
+  }
+
+  uint64_t TAP_getConstantIntValue(Value *V) {
+    
+    if (ConstantInt* ci = dyn_cast<ConstantInt>(V)) {
+      uint64_t val = ci->getValue().getLimitedValue();
+      return val;
+    }
+    else {
+      assert(0 && "should be a constantInt");
+    }
+  }
+      
+  bool TAP_isClapFunction(Instruction* I, const char*clapFuncName) {
+    bool res = false;
+    if (CallInst* callI = dyn_cast<CallInst>(I)) {
+      Function* func = callI->getCalledFunction();
+      res = (!strcmp(clapFuncName,func->getName().data()));
+    }
+    return res;
+  }
+
+
+  YicesDP::expr TAP_constructSMTExprForInstruction(YicesDP* yices, Instruction* I) {
+    
+    YicesDP::expr res = yices->mk_true();
+
+    switch (I->getOpcode()) {
+      // Control flow
+    case Instruction::Ret:         {
+      //chao, we need to do something here!
+      //Bing: what is the expected behavior here?
+      DBG_MSG("may need to handle RetInst!\n");
+      break;
+    }
+    case Instruction::Br:  {        
+      // br is translated into Call clap_assume();
+      // Done!
+      assert(0 && "shouldn't occur in trace"); 
+      break;
+    }
+    case Instruction::Switch:      assert(0 && "shouldn't occur in trace"); break;
+      // we hope we can find out a pass to translate switch to nested if strcuture;
+
+    case Instruction::Unreachable: assert(0 && "shouldn't occur in trace"); break;
+    case Instruction::Invoke:      assert(0 && "shouldn't occur in trace"); break;
+    case Instruction::Call: {
+      if (TAP_isClapFunction(I,(const char*)"clap_assume")) {
+        YicesDP::expr cond = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+        YicesDP::expr flag = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+        res = yices->mk_eq(cond, flag);
+      }
+      else if (TAP_isClapFunction(I,(const char*)"tap_input_int")) {
+        //1. find the name of the program variable 
+        YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+        YicesDP::Typ ty = TAP_getVarType( I->getOperand(0)->getType() );
+        //2. create a new variable named 'havoc_v#' variable
+        char havoc_v[64];
+
+        sprintf(havoc_v,"havoc_v%d", ++havoc_v_cnt);        //havoc_v_cnt is the havoc index;
+        YicesDP::expr rhs = yices->mk_var(havoc_v, ty);
+        res = yices->mk_eq(lhs, rhs);
+      }
+      else {
+        //chao, we need to do something here!
+        DBG_MSG("SymTAP need to handle CallInst!\n");
+      }
+      break;
+    }       
+    case Instruction::PHI:         assert(0 && "shouldn't occur in trace"); break;
+    case Instruction::Select:      assert(0 && "shouldn't occur in trace"); break;
+    case Instruction::VAArg:       assert(0 && "shouldn't occur in trace"); break;
+    case Instruction::Add: {
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_sum(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices,I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::Sub: {
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_sub(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices,I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::Mul: {
+      //the function modified by Bing;
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_mul(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::UDiv: {
+      //Bing;
+      //check the right != 0 
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_div(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::SDiv: {
+      //Bing;
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_div(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices,I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::URem: {
+      //Bing;
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_mod(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::SRem: {
+      //Bing;
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_mod(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::And: {
+      //Bing;
+      //treat bitvector and int separately;
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_and(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::Or: {
+      //Bing;
+      //further add bitvector operation;
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_or(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::Xor: {
+      //Bing;
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_xor(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::Shl: {
+      //Bing:need further test;
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_bv_ls(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::LShr: {
+      //Bing: the function mk_bv_shift_right0/1 and mk_bv_shift_left0/1 are not listed separately;
+      assert(0); break;
+    }
+    case Instruction::AShr: {
+      //Bing: cannot find out a exactly function match this function;
+      assert(0); break;
+    }
+    case Instruction::ICmp: {
+      CmpInst *ci = cast<CmpInst>(I);
+      ICmpInst *ii = cast<ICmpInst>(ci);
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr lhs =  TAP_constructSMTExprForValue(yices, I);
+      YicesDP::expr rhs = NULL;
+      switch(ii->getPredicate()) {
+      case ICmpInst::ICMP_EQ:   rhs = yices->mk_eq(left,right); break;
+      case ICmpInst::ICMP_NE:   rhs = yices->mk_diseq(left,right); break;
+      case ICmpInst::ICMP_UGT:  rhs = yices->mk_gt(left,right); break;
+      case ICmpInst::ICMP_UGE:  rhs = yices->mk_ge(left,right); break;
+      case ICmpInst::ICMP_ULT:  rhs = yices->mk_lt(left,right); break;
+      case ICmpInst::ICMP_ULE:  rhs = yices->mk_le(left,right); break;
+      case ICmpInst::ICMP_SGT:  rhs = yices->mk_gt(left,right); break;
+      case ICmpInst::ICMP_SGE:  rhs = yices->mk_ge(left,right); break;
+      case ICmpInst::ICMP_SLT:  rhs = yices->mk_lt(left,right); break;
+      case ICmpInst::ICMP_SLE:  rhs = yices->mk_le(left,right); break;
+      default: assert(0); break;
+      }
+      res = yices->mk_eq(lhs, rhs);
+      break;
+    }
+    case Instruction::Alloca: {
+      //chao, ignore instructions such as " %tmp = alloc i32 "
+      break;
+    }
+    case Instruction::Load: {
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices,I);
+      //errs() << lhs;
+      YicesDP::expr rhs = TAP_constructSMTExprForValue(yices,I->getOperand(0));
+      res = yices->mk_eq(lhs, rhs);
+      break;
+    }
+    case Instruction::Store: {
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices,I->getOperand(1));
+      YicesDP::expr rhs = TAP_constructSMTExprForValue(yices,I->getOperand(0));
+      res = yices->mk_eq(lhs, rhs);
+      break;
+    }
+    case Instruction::GetElementPtr: {
+      //Bing: no match yices function;
+      assert(0); break;
+    }
+    case Instruction::Trunc: {
+      //Bing: no match yices function; however, mk_bv_mul might be used to trucate;
+      assert(0); break;
+    }
+    case Instruction::ZExt: {
+      //Bing: zero extension maybe achieved by or with all zero ty2;
+      assert(0); break;
+    }
+    case Instruction::SExt: {
+      //Bing: if value.ty != i1
+      //sext can be treated as OR with some vector;
+      assert(0); break;
+    }
+    case Instruction::IntToPtr: {
+      assert(0); break;
+    } 
+    case Instruction::PtrToInt: {
+      assert(0); break;
+    }
+    case Instruction::BitCast: {
+      //Bing; this is just a rough operation;
+      //Here the method we used is simalar like FPExt and other kyewords;
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      YicesDP::expr rhs = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      res = yices->mk_eq(lhs, rhs);
+      break;
+    }
+    case Instruction::FAdd: {
+      //Bing;
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_sum(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::FSub: {
+      //Bing;
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_sub(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::FMul: {
+      //Bing;
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_mul(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::FDiv: {
+      //Bing;
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_div(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::FRem: {
+      //Bing;
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr rhs = yices->mk_mod(left, right);
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::FPTrunc: {
+      //Bing; for this case, we treated the same as FPExt;             Buggy!!!
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      YicesDP::expr rhs = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      res = yices->mk_eq(lhs,rhs);
+      break;
+    }
+    case Instruction::FPExt: {
+      //Bing; tested in ep5, however, more details need to be defined.  Buggy!!!
+      //Here the acceptable case is ignoring the type just remain the name of variable;
+      //There are some bugs in type;
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      //CastInst *cit = cast<CastInst>(I);
+      //YicesDP::Typ ty = TAP_getVarType(cit->getDestTy());
+      //make REALty as an example;
+      //YicesDP::expr rhs = dyn_cast<&ty>(I->getOperand(0));
+      //existing Question: How to express cast operation here????????
+      YicesDP::expr rhs = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      res = yices->mk_eq(lhs, rhs);
+      break;
+    }
+    case Instruction::FPToUI: {
+      //Bing; maybe buggy;
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      YicesDP::expr rhs = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      res = yices->mk_eq(lhs, rhs);
+      break;
+    }
+    case Instruction::FPToSI: {
+      //Bing; maybe buggy;
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      YicesDP::expr rhs = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      res = yices->mk_eq(lhs, rhs);
+      break;
+    }
+    case Instruction::UIToFP: {
+      //Bing; maybe buggy;
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      YicesDP::expr rhs = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      res = yices->mk_eq(lhs, rhs);
+      break;
+    }
+    case Instruction::SIToFP: {
+      //Bing; maybe buggy;
+      YicesDP::expr lhs = TAP_constructSMTExprForValue(yices, I);
+      YicesDP::expr rhs = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      res = yices->mk_eq(lhs, rhs);
+      break;
+    }
+    case Instruction::FCmp: {
+      //Bing: similar as ICmp;
+      //assert(0); break;
+      CmpInst *ci = cast<CmpInst>(I);
+      FCmpInst *fi = cast<FCmpInst>(ci);
+      YicesDP::expr left  = TAP_constructSMTExprForValue(yices, I->getOperand(0));
+      YicesDP::expr right = TAP_constructSMTExprForValue(yices, I->getOperand(1));
+      YicesDP::expr lhs =  TAP_constructSMTExprForValue(yices, I);
+      YicesDP::expr rhs = NULL;
+      switch(fi->getPredicate()) {
+      case FCmpInst::FCMP_ORD:
+	    //Bing: how to express QNAN?
+        break;
+      case FCmpInst::FCMP_UNO:
+        break;
+      case FCmpInst::FCMP_UEQ:
+	      rhs = yices->mk_eq(left, right); break;
+      case FCmpInst::FCMP_OEQ:
+	      rhs = yices->mk_eq(left, right); break;
+      case FCmpInst::FCMP_UGT:
+	      rhs = yices->mk_gt(left, right); break;
+      case FCmpInst::FCMP_OGT:
+	      rhs = yices->mk_gt(left, right); break;
+      case FCmpInst::FCMP_UGE:
+	      rhs = yices->mk_ge(left, right); break;
+      case FCmpInst::FCMP_OGE:
+	      rhs = yices->mk_ge(left, right); break;
+      case FCmpInst::FCMP_ULT:
+	      rhs = yices->mk_lt(left, right); break;
+      case FCmpInst::FCMP_OLT:
+	      rhs = yices->mk_lt(left, right); break;
+      case FCmpInst::FCMP_ULE:
+	      rhs = yices->mk_le(left, right); break;
+      case FCmpInst::FCMP_OLE:
+	      rhs = yices->mk_le(left, right); break;
+      case FCmpInst::FCMP_UNE:
+	      rhs = yices->mk_diseq(left, right); break;
+      case FCmpInst::FCMP_ONE:
+	      rhs = yices->mk_diseq(left, right); break;
+      case FCmpInst::FCMP_FALSE:
+        break;
+      case FCmpInst::FCMP_TRUE:
+        break;
+      default:
+	      assert(0 && "Invalid FCMP predicate!");	break;
+      }
+      res = yices->mk_eq(lhs, rhs);
+      break;
+    }
+    case Instruction::InsertValue: {
+      assert(0); break;
+    }
+    case Instruction::ExtractValue: {
+      assert(0); break;
+    }
+      // Other instructions...
+      // Unhandled
+    case Instruction::ExtractElement:
+    case Instruction::InsertElement:
+    case Instruction::ShuffleVector:
+    default:
+      assert(0 && "shouldn't occur in trace"); break;
+      break;
+    }
+  
+  return res;
+  }
+
+
+  
+};
+
+
+
+
+}//namespace 
+
+char TAP_InstrumentInstTraceGen::ID = 0;
+int TAP_InstrumentInstTraceGen::havoc_v_cnt = 0;
+static RegisterPass<TAP_InstrumentInstTraceGen> X("tap_inst_trace_gen", 
+                                                 "TAP Instruction Trace Gen Pass");

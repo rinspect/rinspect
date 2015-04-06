@@ -1,0 +1,12 @@
+A D/BasicAA////
+A D/BlockFrequencyInfo////
+A D/CallGraph////
+A D/Dominators////
+A D/GlobalsModRef////
+A D/LoopDependenceAnalysis////
+A D/LoopInfo////
+A D/PostDominators////
+A D/Profiling////
+A D/RegionInfo////
+A D/ScalarEvolution////
+A D/TypeBasedAliasAnalysis////

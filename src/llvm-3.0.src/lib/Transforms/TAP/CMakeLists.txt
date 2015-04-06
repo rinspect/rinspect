@@ -1,0 +1,8 @@
+add_llvm_loadable_module( LLVMChao
+TAP_InstrumentCall.cpp
+TAP_InstrumentInstId.cpp
+TAP_InstrumentInstNumber.cpp
+TAP_InstrumentInstruction.cpp
+TAP_InstrumentMem.cpp
+TAP_InstrumentPThreads.cpp
+)

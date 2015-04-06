@@ -1,0 +1,4 @@
+#! /bin/sh -vx
+
+gcc -g  -o target  $* -L ./lib  -linspect -lpthread -lstdc++ -lssl
+

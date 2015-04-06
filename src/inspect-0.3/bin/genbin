@@ -1,0 +1,24 @@
+#!/bin/sh -vx
+
+echo $1
+#--save-temps
+
+INPUT=`"basename" $1 ".c"`
+
+
+./cil-1.3.6/bin/cilly  --dooneRet --keepunused --noPrintLn --forceRLArgEval --check  --save-temps  $1  > out  2>&1
+
+#sed '/undefined/d' out   > out1
+#sed '/gcc/d'  out1  > out2
+#sed '/.o: In/d' out2  > out3
+#sed '/.o(.text+/d' out3 > out4
+#cat out4
+
+#rm out1 out2  out3 out4
+
+#echo "Removing temp files .... "
+rm -f $INPUT.i  $INPUT.cil.i  $INPUT.o  
+mv $INPUT.cil.c  $INPUT.instr.c
+
+gcc -g -o target $INPUT.instr.c -L ./lib  -linspect -lpthread -lstdc++ -lm
+

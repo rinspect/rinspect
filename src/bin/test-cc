@@ -1,0 +1,22 @@
+#!/bin/bash -x
+set -e
+
+#args="$@"
+
+bindir=`dirname $(readlink -f $0)`
+
+TAP_PATH=`readlink -f $bindir/..`
+
+CFLAGS="-g"
+OPT_FLAG="-load=$TAP_PATH/build/Release+Debug+Asserts/lib/LLVMSymTAP.so"
+OPT_FLAG="$OPT_FLAG -basicaa"
+OPT_FLAG="$OPT_FLAG -tap_inst_trace_gen"
+
+OPT_FLAG="$OPT_FLAG -tap-tgen-in   in.txt"
+OPT_FLAG="$OPT_FLAG -tap-tgen-out out.txt"
+OPT_FLAG="$OPT_FLAG -tap-tgen-dbg 1"
+OPT_FLAG="$OPT_FLAG -tap-tgen-target $1"
+
+cp trace.txt in.txt
+$TAP_PATH/build/Release+Debug+Asserts/bin/opt  $OPT_FLAG -o $1.trace.bc $1.opt.bc
+

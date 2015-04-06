@@ -1,0 +1,98 @@
+make -C ./src
+make[1]: Entering directory `/home/rss/src/inspect-0.3/src'
+g++ -Wall  -g  -pthread -D__USE_XOPEN2K -fpermissive -Wunused-variable -Wno-deprecated -DRSS_EXTENSION=1 -I/home/rss/src/yices-1.0.39/include -I/home/rss/src/smt_dp -c  inspect_clap.cc  -o inspect_clap.o
+inspect_clap.cc: In function ‘bool barrier_find_or_add(pthread_barrier_t*)’:
+inspect_clap.cc:196:55: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 3 has type ‘long int’ [-Wformat]
+inspect_clap.cc: In function ‘int get_unique_inst_id(int)’:
+inspect_clap.cc:236:23: warning: comparison between signed and unsigned integer expressions [-Wsign-compare]
+inspect_clap.cc:241:26: warning: cast to pointer from integer of different size [-Wint-to-pointer-cast]
+inspect_clap.cc: In function ‘void clap_load_pre(int, ...)’:
+inspect_clap.cc:518:15: warning: invalid conversion from ‘int’ to ‘int*’ [-fpermissive]
+inspect_clap.cc:519:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_load_post(int, ...)’:
+inspect_clap.cc:544:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc:546:7: warning: unused variable ‘inst_id’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_store_pre(int, ...)’:
+inspect_clap.cc:577:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_store_post(int, ...)’:
+inspect_clap.cc:603:8: warning: unused variable ‘addr’ [-Wunused-variable]
+inspect_clap.cc:604:7: warning: unused variable ‘value’ [-Wunused-variable]
+inspect_clap.cc:605:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc:606:7: warning: unused variable ‘typ’ [-Wunused-variable]
+inspect_clap.cc:607:7: warning: unused variable ‘inst_id’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_cmpxchg_pre(int, ...)’:
+inspect_clap.cc:645:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_cmpxchg_post(int, ...)’:
+inspect_clap.cc:672:8: warning: unused variable ‘addr’ [-Wunused-variable]
+inspect_clap.cc:673:7: warning: unused variable ‘old_val’ [-Wunused-variable]
+inspect_clap.cc:674:7: warning: unused variable ‘value’ [-Wunused-variable]
+inspect_clap.cc:675:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc:676:7: warning: unused variable ‘typ’ [-Wunused-variable]
+inspect_clap.cc:677:7: warning: unused variable ‘inst_id’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_atomicrmw_pre(int, ...)’:
+inspect_clap.cc:713:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_atomicrmw_post(int, ...)’:
+inspect_clap.cc:740:8: warning: unused variable ‘addr’ [-Wunused-variable]
+inspect_clap.cc:741:7: warning: unused variable ‘value’ [-Wunused-variable]
+inspect_clap.cc:742:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc:743:7: warning: unused variable ‘typ’ [-Wunused-variable]
+inspect_clap.cc:744:7: warning: unused variable ‘inst_id’ [-Wunused-variable]
+inspect_clap.cc: In function ‘bool is_lin_check_method(char*)’:
+inspect_clap.cc:775:27: warning: deprecated conversion from string constant to ‘char*’ [-Wwrite-strings]
+inspect_clap.cc: In function ‘void clap_call_pre(int, ...)’:
+inspect_clap.cc:809:70: warning: cast from ‘char*’ to ‘unsigned int’ loses precision [-fpermissive]
+inspect_clap.cc: In function ‘void clap_call_post(int, ...)’:
+inspect_clap.cc:869:72: warning: cast from ‘char*’ to ‘unsigned int’ loses precision [-fpermissive]
+inspect_clap.cc:878:9: warning: unused variable ‘tmp’ [-Wunused-variable]
+g++ -Wall  -g  -pthread -D__USE_XOPEN2K -fpermissive -Wunused-variable -Wno-deprecated -DRSS_EXTENSION=1 -I/home/rss/src/yices-1.0.39/include -I/home/rss/src/smt_dp -MM inspect_clap.cc > inspect_clap.d
+g++ -Wall  -g  -pthread -D__USE_XOPEN2K -fpermissive -Wunused-variable -Wno-deprecated -DRSS_EXTENSION=1 -I/home/rss/src/yices-1.0.39/include -I/home/rss/src/smt_dp -o inspect  event_buffer.o  event_relation_graph.o  scheduler.o  state.o  lockset.o  state_stack.o  scheduler_object_table.o  inspect_main.o  transition_set.o  thread_info.o  clock_vector.o  program_state.o  scheduler_setting.o  next_state.o  inspect_ucg_graph.o  yices_path_computer_singleton.o  inspect_trace.o  inspect_util.o  inspect_pthread.o  inspect_event.o  object_table.o  inspect_clap.o  lin_checker.o -Wl,-rpath,/home/rss/src/smt_dp/lib -Wl,-rpath-link,/home/rss/src/smt_dp/lib -Wl,-L,/home/rss/src/smt_dp/lib -lsmtdp -Wl,-rpath,/home/rss/src/yices-1.0.39/lib -Wl,-rpath-link,/home/rss/src/yices-1.0.39/lib -Wl,-L,/home/rss/src/yices-1.0.39/lib -lyices -lpthread -lrt 
+ar rcs ../lib/libinspect.a  inspect_util.o  inspect_pthread.o  inspect_event.o  object_table.o  inspect_clap.o  lin_checker.o
+ranlib ../lib/libinspect.a
+g++ -Wall  -g  -pthread -D__USE_XOPEN2K -fpermissive -Wunused-variable -Wno-deprecated -DRSS_EXTENSION=1 -I/home/rss/src/yices-1.0.39/include -I/home/rss/src/smt_dp -fPIC -c inspect_clap.cc -o inspect_clap.os
+inspect_clap.cc: In function ‘bool barrier_find_or_add(pthread_barrier_t*)’:
+inspect_clap.cc:196:55: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 3 has type ‘long int’ [-Wformat]
+inspect_clap.cc: In function ‘int get_unique_inst_id(int)’:
+inspect_clap.cc:236:23: warning: comparison between signed and unsigned integer expressions [-Wsign-compare]
+inspect_clap.cc:241:26: warning: cast to pointer from integer of different size [-Wint-to-pointer-cast]
+inspect_clap.cc: In function ‘void clap_load_pre(int, ...)’:
+inspect_clap.cc:518:15: warning: invalid conversion from ‘int’ to ‘int*’ [-fpermissive]
+inspect_clap.cc:519:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_load_post(int, ...)’:
+inspect_clap.cc:544:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc:546:7: warning: unused variable ‘inst_id’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_store_pre(int, ...)’:
+inspect_clap.cc:577:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_store_post(int, ...)’:
+inspect_clap.cc:603:8: warning: unused variable ‘addr’ [-Wunused-variable]
+inspect_clap.cc:604:7: warning: unused variable ‘value’ [-Wunused-variable]
+inspect_clap.cc:605:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc:606:7: warning: unused variable ‘typ’ [-Wunused-variable]
+inspect_clap.cc:607:7: warning: unused variable ‘inst_id’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_cmpxchg_pre(int, ...)’:
+inspect_clap.cc:645:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_cmpxchg_post(int, ...)’:
+inspect_clap.cc:672:8: warning: unused variable ‘addr’ [-Wunused-variable]
+inspect_clap.cc:673:7: warning: unused variable ‘old_val’ [-Wunused-variable]
+inspect_clap.cc:674:7: warning: unused variable ‘value’ [-Wunused-variable]
+inspect_clap.cc:675:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc:676:7: warning: unused variable ‘typ’ [-Wunused-variable]
+inspect_clap.cc:677:7: warning: unused variable ‘inst_id’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_atomicrmw_pre(int, ...)’:
+inspect_clap.cc:713:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc: In function ‘void clap_atomicrmw_post(int, ...)’:
+inspect_clap.cc:740:8: warning: unused variable ‘addr’ [-Wunused-variable]
+inspect_clap.cc:741:7: warning: unused variable ‘value’ [-Wunused-variable]
+inspect_clap.cc:742:25: warning: unused variable ‘ord’ [-Wunused-variable]
+inspect_clap.cc:743:7: warning: unused variable ‘typ’ [-Wunused-variable]
+inspect_clap.cc:744:7: warning: unused variable ‘inst_id’ [-Wunused-variable]
+inspect_clap.cc: In function ‘bool is_lin_check_method(char*)’:
+inspect_clap.cc:775:27: warning: deprecated conversion from string constant to ‘char*’ [-Wwrite-strings]
+inspect_clap.cc: In function ‘void clap_call_pre(int, ...)’:
+inspect_clap.cc:809:70: warning: cast from ‘char*’ to ‘unsigned int’ loses precision [-fpermissive]
+inspect_clap.cc: In function ‘void clap_call_post(int, ...)’:
+inspect_clap.cc:869:72: warning: cast from ‘char*’ to ‘unsigned int’ loses precision [-fpermissive]
+inspect_clap.cc:878:9: warning: unused variable ‘tmp’ [-Wunused-variable]
+g++ -Wall  -g  -pthread -D__USE_XOPEN2K -fpermissive -Wunused-variable -Wno-deprecated -DRSS_EXTENSION=1 -I/home/rss/src/yices-1.0.39/include -I/home/rss/src/smt_dp -MM inspect_clap.cc > inspect_clap.d
+gcc -shared -o ../lib/libinspect.so   inspect_util.os  inspect_pthread.os  inspect_event.os  object_table.os  inspect_clap.os  lin_checker.os
+make[1]: Leaving directory `/home/rss/src/inspect-0.3/src'
+mv ./src/inspect .

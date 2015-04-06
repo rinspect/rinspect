@@ -1,0 +1,65 @@
+/*
+ * This is a C program that implements the following Litmus test
+ * http://www.cprover.org/wmm/esop13/x86_litmus//mix054.litmus
+ *
+
+X86 mix054
+"Fre PodWW Wse PodWR"
+Cycle=Fre PodWW Wse PodWR
+Relax=PodWR
+Safe=Fre Wse PodWW
+{
+}
+ P0         | P1          ;
+ MOV [y],$1 | MOV [x],$2  ;
+ MOV [x],$1 | MOV EAX,[y] ;
+exists
+(x=2 /\ 1:EAX=0)
+
+ * TSO violation expected.
+ *
+ * PSO violation expected.
+ */
+
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+
+long int x, y;
+
+void *P0(void *arg)
+{
+  long int EAX, EBX;
+  y = 1;
+  x = 1;
+  return (void*)1;
+}
+
+void *P1(void *arg)
+{
+  long int EAX, EBX;
+  x = 2;
+  EAX = y;
+  printf("\n %%%% (EAX1=%d) %%%%\n", EAX);
+  return (void*)(EAX==0);
+}
+
+int main(void) 
+{
+  pthread_t t0, t1, t2, t3;
+  long int cond0, cond1, cond2, cond3;
+
+  pthread_create(&t0, 0, P0, 0);
+  pthread_create(&t1, 0, P1, 0);
+
+  pthread_join(t0, (void**)&cond0);
+  pthread_join(t1, (void**)&cond1);
+
+  //assert( ! (x==2 && cond1) );
+  if (x==2 && cond1) {
+    printf("\n@@@CLAP: There is a SC violation! \n");
+    printf("\033[1;31m SC Violation!!! \033[0m\n");
+  }
+
+  return 0;
+}

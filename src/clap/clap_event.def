@@ -1,0 +1,108 @@
+/* 
+ * this file include the defintion of EventTypes
+ */
+
+/* 
+ * the events that are relatd to mutexes 
+ */
+
+DEF_EVENT_CODE (MUTEX_INIT,         "mutex_init   ", MUTEX_INIT_PERM,  EC_MUTEX)
+DEF_EVENT_CODE (MUTEX_DESTROY,      "mutex_destroy", MUTEX_DESTROY_PERM, EC_MUTEX)
+DEF_EVENT_CODE (MUTEX_LOCK,         "mutex_lock   ",  MUTEX_LOCK_PERM, EC_MUTEX)
+DEF_EVENT_CODE (MUTEX_UNLOCK,       "mutex_unlock ", MUTEX_UNLOCK_PERM, EC_MUTEX)
+DEF_EVENT_CODE (MUTEX_TRYLOCK,      "mutex_trylock", MUTEX_TRYLOCK_PERM, EC_MUTEX)
+
+
+/* 
+ * the events that are related to condition variables
+ */
+
+DEF_EVENT_CODE (COND_INIT,          "cond_init    ", COND_INIT_PERM, EC_COND)
+DEF_EVENT_CODE (COND_DESTROY,       "cond_destroy ", COND_DESTROY_PERM, EC_COND)
+DEF_EVENT_CODE (COND_WAIT_LOCK,     "wait_lock    ", COND_WAIT_LOCK_PERM, EC_COND)
+DEF_EVENT_CODE (COND_WAIT_UNLOCK,   "wait_unlock  ", COND_WAIT_UNLOCK_PERM, EC_COND)
+DEF_EVENT_CODE (COND_WAIT,          "cond_wait    ", COND_WAIT_PERM, EC_COND)
+DEF_EVENT_CODE (COND_SIGNAL,        "cond_signal  ", COND_SIGNAL_PERM, EC_COND)
+DEF_EVENT_CODE (COND_BROADCAST,     "cond_broadcast", COND_BROADCAST_PERM, EC_COND)
+DEF_EVENT_CODE (COND_TIMEDWAIT,     "cond_timedwait", COND_TIMEDWAIT_PERM, EC_COND)
+
+
+/*
+ * the events that are related to read-write locks
+ */
+
+DEF_EVENT_CODE (RWLOCK_INIT,        "rwlock_init  ",  RWLOCK_INIT_PERM, EC_RWLOCK)
+DEF_EVENT_CODE (RWLOCK_DESTROY,     "rwlock_destroy",RWLOCK_DESTROY_PERM, EC_RWLOCK)
+DEF_EVENT_CODE (RWLOCK_RDLOCK,      "rwlock_rdlock", RWLOCK_RDLOCK_PERM, EC_RWLOCK)
+DEF_EVENT_CODE (RWLOCK_TRYRDLOCK,   "rwlock_tryrdlock ", RWLOCK_TRYRDLOCK_PERM, EC_RWLOCK)
+DEF_EVENT_CODE (RWLOCK_WRLOCK,      "rwlock_wrlock", RWLOCK_WRLOCK_PERM, EC_RWLOCK)
+DEF_EVENT_CODE (RWLOCK_TRYWRLOCK,   "rwlock_trywrlock ", RWLOCK_TRYWRLOCK_PERM, EC_RWLOCK)
+DEF_EVENT_CODE (RWLOCK_UNLOCK,      "rwlock_unlock", RWLOCK_UNLOCK_PERM, EC_RWLOCK)
+
+
+/*
+ *  thread-related events
+ */
+DEF_EVENT_CODE (THREAD_START,       "thread_start ", THREAD_START_PERM, EC_THREAD)
+DEF_EVENT_CODE (THREAD_END,         "thread_end   ", THREAD_END_PERM, EC_THREAD)
+DEF_EVENT_CODE (THREAD_CREATE,      "thread_create", THREAD_CREATE_PERM, EC_THREAD)
+DEF_EVENT_CODE (THREAD_PRE_CREATE,  "thread_precreate ", THREAD_PRE_CREATE_PERM, EC_THREAD)
+DEF_EVENT_CODE (THREAD_POST_CREATE, "thread_postcreate", THREAD_POST_CREATE_PERM, EC_THREAD)
+DEF_EVENT_CODE (THREAD_JOIN,        "thread_join  ", THREAD_JOIN_PERM, EC_THREAD)
+DEF_EVENT_CODE (THREAD_CANCEL,      "thread_cancel", THREAD_CANCEL_PERM, EC_THREAD)
+DEF_EVENT_CODE (STATE_CAPTURING_THREAD_START,       "state_capturing_thread_start", STATE_CAPTURING_THREAD_START_PERM,  EC_THREAD)
+DEF_EVENT_CODE (STATE_CAPTURING_THREAD_PRE_CREATE,  "state_capturing_thread_precreate",  STATE_CAPTURING_THREAD_PRE_CREATE_PERM, EC_THREAD)
+DEF_EVENT_CODE (STATE_CAPTURING_THREAD_POST_CREATE, "state_capturing_thread_postcreate", STATE_CAPTURING_THREAD_POST_CREATE_PERM, EC_THREAD)
+
+
+/*
+ * object read/write perm
+ */
+
+DEF_EVENT_CODE (OBJ_REGISTER,       "obj_register ", OBJ_REGISTER_PERM, EC_OBJECT)
+DEF_EVENT_CODE (OBJ_READ,           "obj_read     ", OBJ_READ_PERM, EC_OBJECT)
+DEF_EVENT_CODE (OBJ_WRITE,          "obj_write    ", OBJ_WRITE_PERM, EC_OBJECT)
+DEF_EVENT_CODE (OBJ_CALL,           "obj_call     ", OBJ_CALL_PERM, EC_OBJECT)
+
+/*  
+ *  symmetry related events
+ */
+
+DEF_EVENT_CODE (SYMM_POINT, "symmetry_point", SYMM_POINT_PERM, EC_SYMMETRY)
+
+
+/*
+ * locate state related events
+ */ 
+  
+DEF_EVENT_CODE (STATE_REQ, "state_req", STATE_REQ_PERM, EC_GLOBAL)
+DEF_EVENT_CODE (STATE_ACK, "state_ack", STATE_ACK_PERM, EC_GLOBAL)
+DEF_EVENT_CODE (LOCAL_INFO, "local_info",  LOCAL_INFO_PERM, EC_LOCAL)
+DEF_EVENT_CODE (LOCAL_STATE_BEGIN, "local_state_begin", LOCAL_STATE_BEGIN_PERM, EC_LOCAL)
+DEF_EVENT_CODE (LOCAL_STATE_END, "local_state_end", LOCAL_STATE_END_PERM, EC_LOCAL)
+DEF_EVENT_CODE (LOCAL_INT, "local_int", LOCAL_INT_PERM, EC_LOCAL)
+DEF_EVENT_CODE (LOCAL_DOUBLE, "local_double", LOCAL_DOUBLE_PERM, EC_LOCAL)
+DEF_EVENT_CODE (LOCAL_BINARY, "local_binary", LOCAL_BINARY_PERM, EC_LOCAL)
+
+
+/*
+ *  CAS instructions
+ */
+DEF_EVENT_CODE (CAS_INSTR, "cas_instr",  CAS_INSTR_PERM, EC_CAS)
+DEF_EVENT_CODE (CAS2_INSTR, "cas2_instr", CAS2_INSTR_PERM, EC_CAS)
+
+
+/* 
+ * ASSERTION
+ */	
+DEF_EVENT_CODE (PROPERTY_ASSERT,    "property_assert  ", PROPERTY_ASSERT_PERM, EC_PROPERTY)
+DEF_EVENT_CODE (MISC_SLEEP,         "misc_sleep       ", MISC_SLEEP_PERM,      EC_PROPERTY)
+DEF_EVENT_CODE (MISC_YIELD,         "misc_yield       ", MISC_YIELD_PERM,      EC_PROPERTY)
+DEF_EVENT_CODE (MISC_BLOCKING,      "misc_blocking    ", MISC_BLOCKING_PERM,   EC_PROPERTY)
+DEF_EVENT_CODE (MISC_UNBLOCKING,    "misc_unblocking  ", MISC_UNBLOCKING_PERM, EC_PROPERTY)
+DEF_EVENT_CODE (MISC_ATOM_START,    "misc_atom_start  ", MISC_ATOM_START_PERM, EC_PROPERTY)
+DEF_EVENT_CODE (MISC_ATOM_END,      "misc_atom_end    ", MISC_ATOM_END_PERM,   EC_PROPERTY)
+DEF_EVENT_CODE (MISC_EXIT,          "misc_exit        ", MISC_EXIT_PERM,       EC_PROPERTY)
+DEF_EVENT_CODE (MANUAL_REST,        "manual_rest      ", MANUAL_REST_PERM,     EC_PROPERTY)
+
+

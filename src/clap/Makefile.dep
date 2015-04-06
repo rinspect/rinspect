@@ -1,0 +1,7 @@
+ext/clap_pthread.o: clap_pthread.c clap_pthread.h
+ext/clap_pthread.o: clap_pthread.c clap_pthread.h
+ext/clap_pthread.o: clap_pthread.c clap_pthread.h
+ext/clap_pthread.o: clap_pthread.c clap_pthread.h
+ext/clap_pthread.o: clap_pthread.c clap_pthread.h
+ext/clap_pthread.o: clap_pthread.c clap_pthread.h
+ext/clap_pthread.o: clap_pthread.c clap_pthread.h

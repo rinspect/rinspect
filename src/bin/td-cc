@@ -1,0 +1,55 @@
+#!/bin/bash 
+set -e
+
+#args="$@"
+
+bindir=`dirname $(readlink -f $0)`
+
+TAP_PATH=`readlink -f $bindir/..`
+
+CLAP_LIB_PATH="$TAP_PATH/clap/lib/"
+SMTDP_LIB_PATH="$TAP_PATH/smt_dp/lib/"
+YICES_LIB_PATH="$TAP_PATH/yices-1.0.28/lib/"
+
+CFLAGS="-g"
+OPT_FLAG="-load=$TAP_PATH/build/Release+Debug+Asserts/lib/LLVMTAP.so"
+OPT_FLAG="$OPT_FLAG -basicaa"
+OPT_FLAG="$OPT_FLAG -tap_inst_number"
+OPT_FLAG="$OPT_FLAG -tap_pthreads"
+OPT_FLAG="$OPT_FLAG -tap_call"
+
+LDFLAGS="$LDFLAGS -Wl,-rpath,$CLAP_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-rpath-link,$CLAP_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-L,$CLAP_LIB_PATH"
+
+LDFLAGS="$LDFLAGS -Wl,-rpath,$SMTDP_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-rpath-link,$SMTDP_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-L,$SMTDP_LIB_PATH"
+
+LDFLAGS="$LDFLAGS -Wl,-rpath,$YICES_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-rpath-link,$YICES_LIB_PATH"
+LDFLAGS="$LDFLAGS -Wl,-L,$YICES_LIB_PATH"
+
+
+for l in clap smtdp yices pthread rt m stdc++ 
+do
+    LDFLAGS="$LDFLAGS -l$l"
+done
+
+
+#Cilly -g $CFLAGS $LDFLAGS $args
+
+$TAP_PATH/install/bin/clang $CFLAGS    -emit-llvm -c -o $1.bc   $1.c
+
+$TAP_PATH/install/bin/opt   -instnamer              -o $1.ins.bc $1.bc
+
+$TAP_PATH/install/bin/opt   $OPT_FLAG               -o $1.opt.bc $1.ins.bc
+$TAP_PATH/install/bin/llvm-dis      $1.opt.bc
+
+$TAP_PATH/install/bin/llc                           -o $1.s      $1.opt.bc
+
+
+
+gcc -g $1.s $LDFLAGS -o $1.exe
+
+#gcc -g $1.cc $LDFLAGS -o $1.exe

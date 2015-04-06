@@ -1,0 +1,2 @@
+IQueue::enq(int)
+IQueue::deq()
