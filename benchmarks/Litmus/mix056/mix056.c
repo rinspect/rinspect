@@ -66,7 +66,7 @@ int main(void)
   pthread_join(t2, (void**)&cond2);
 
   //assert( ! (x==2 && y==2 && cond2) );
-  printf("x=%d, y=%d, z=%d\n",x,y,z);
+  //printf("x=%d, y=%d, z=%d\n",x,y,z);
   if (x==2 && y==2 && cond2) {
     printf("\n@@@CLAP: There is a SC violation! \n");
     printf("\033[1;31m SC Violation!!! \033[0m\n");
