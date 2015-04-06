@@ -197,7 +197,7 @@ check-auto-race :
 		else \
 	          echo -ne '\E[47;31m\033[1m inspect       failed \033[0m' ; tput sgr0; \
 		  echo " (more checkresults/$$example/result.autorace.differences)" ; \
-		  echo "$(INSPECT) --tso-mode --max-rusn 20000 ./target " ; \
+		  echo "$(INSPECT) --tso-mode ./target " ; \
 		fi ; \
 	        \
 		if [ -f $(FULLEXAMPLEPATH)/$$example/replay_inspect.xml ] ; \
