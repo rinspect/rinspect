@@ -43,8 +43,8 @@ void *P0(void *arg)
 void *P1(void *arg)
 {
   long int EAX, EBX;
-  x = 2;
-  y = 1;
+  y = 2;
+  x = 1;
   return (void*)1;
 }
 
