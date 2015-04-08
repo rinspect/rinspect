@@ -28,7 +28,7 @@ exists
 
 long int x, y, z;
 
-void MFENCE(){}
+int dummy; void MFENCE(){ __sync_fetch_and_add (&dummy,0);}
 
 void *P0(void *arg)
 {
