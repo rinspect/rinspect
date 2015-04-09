@@ -1,0 +1,226 @@
+# FileName	[ Makefile ]
+#
+# PackageName	[ tso_example ]
+#
+# Synopsis	[ Regression Test ]
+#
+# Description	[  ]
+#
+# SeeAlso	[  ]
+#
+# Author	[ Chao Wang <chaowang@vt.edu> ]
+#
+# Copyright	[ Copyright (c) 2014 Virginia Tech. All rights reserved. ]
+#
+
+# Default target:
+
+.PHONY : default
+
+default : 
+
+
+######################################################################
+# 				RULES				     #
+######################################################################
+
+#:
+#: Useful targets:
+#:
+
+#----------------------------------------------------------------------
+# Rule for getting help
+#----------------------------------------------------------------------
+
+.PHONY : help
+
+#: help -- Print a list of targets
+
+# This prints all lines in this Makefile that begin with #:
+
+help :
+	@egrep '(^#:)|(^[^.][^\t :]*[ ]*:([^=]|$$))' Makefile
+
+
+#----------------------------------------------------------------------
+# Rules for checking the build
+#----------------------------------------------------------------------
+
+
+.PHONY : check 
+
+# This is a lengthy sed command used to filter out the irrelevant CSV
+# output that appears when the examples are running.
+#
+# Sed does not permit space between the trailing p ("print matching
+# lines") and the semicolon (end of command).  Hashes are escaped --
+# otherwise they are Makefile comments.  This was once a long egrep
+# expression, but the string was too long for Ultrix's egrep.
+
+# check no dpor:  --no-dpor  
+
+SED_CMD = \
+	/^@@@*/p; \
+	/Error.*/p;
+SED_TIME = \
+/Used time (seconds)/p;
+
+SED_RUNS = \
+ /Total number of runs/p; 
+
+
+CHECK_EXAMPLES = podwr000 podwr001 \
+		 mix000 mix001 mix002 mix003 mix004 \
+		 mix005 mix006 mix007 mix008 mix009 \
+		 mix010 mix011 mix012 mix013 mix014 \
+		 mix015 mix016 mix017 mix018 mix019 \
+		 mix020 mix021 mix022 mix023 mix024 \
+		 mix025 mix026 mix027 mix028 mix029 \
+		 mix030 mix031 mix032 mix033 mix034 \
+		 mix035 mix036 mix037 mix038 mix039 \
+		 mix040 mix041 mix042 mix043 mix044 \
+		 mix045 mix046 mix047 mix048 mix049 \
+		 mix050 mix051 mix052 mix053 mix054 \
+		 mix055 mix056 mix057 \
+		 safe000 safe001 safe002 safe003 safe004 \
+		 safe005 safe006 safe007 safe008 safe009 \
+		 safe010 safe011 safe012 safe013 safe014 \
+		 safe015 safe016 safe017 safe018 safe019 \
+		 safe020 safe021 safe022 safe023 safe024 \
+		 safe025 safe026 safe027 safe028 safe029 \
+		 safe030 safe031 safe032 safe033 safe034 \
+		 safe035 safe036 safe037 \
+	         rfi000 rfi001 rfi002 rfi003 rfi004 rfi005 \
+	         rfi006 rfi007 rfi008 rfi009 rfi010 \
+	         thin000 thin001 thin002 \
+
+
+#CHECK_EXAMPLES = DekkerSafe  LamportSafe PetersonSafe DijkstraSafe \
+	 Sync01_true StackSafe StackUnsafe Stateful01_false Stateful01_true SyzmanskiSafe\
+          Atomic01 Centralized-sense-arw CLHQueue-arw\
+
+
+		 
+# Determine the absolute executable path
+# 
+# Starting from the current directory, change directory to the directory
+# part of the product name, then tack on the filename part of EXECUTABLE
+
+VTPATH    = ../..
+CLAPPATH  = $(VTPATH)/clap
+
+INSPECT-CC      := $(shell cd ../../bin ; pwd)/inspcc
+INSPECT      := $(shell cd ../../inspect-0.3 ; pwd)/inspect
+INSPECT-MAXRUNS   := 2000
+
+# Determine the rootname of the examples
+#
+
+#EXAMPLEPATH = regression-examples
+EXAMPLEPATH = Litmus #SV-comp
+
+FULLEXAMPLEPATH := $(shell cd $(EXAMPLEPATH) ; pwd)
+
+#:
+#: check -- Test the locally-built executable (runs check-examples)
+
+check: check-auto-race
+
+clean: 
+	rm -rf checkresults
+
+doc:   
+	mkdir html; doxygen regression_doxy.conf
+
+#: check-examples -- Test each of the examples listed in CHECK_EXAMPLES
+#:	    You may want to invoke this with
+#:            gmake "CHECK_EXAMPLES=abp bakery" check-examples
+#:            gmake EXECUTABLE=vis-cmu check-examples
+#:            gmake EXECUTABLE=/projects/vis/vis-devel/alpha-g/vis \
+#:                    check-examples
+#:            gmake EXAMPLEPATH=/projects/vis/vis-devel/common/examples \
+#:                    check-examples
+#:            gmake EXAMPLEPATH=../common/examples check-examples
+#:            gmake CLAP_LIBRARY_PATH=/projects/vis/vis-devel/share
+
+# For each example,
+#
+# 1) create the directory checkresults/<example>
+# 2) enter that directory
+# 3) create "check_script" by prepending a "set open_path" command
+#    to the example's check_script in the master source directory.  This
+#    makes CLAP look in the master source directory for example files
+# 4) run CLAP on that script, producing "result.raw"
+# 5) filter out relevant lines in the result, producing "result.filtered"
+#    and compare this with the "check_result" file in the master source
+#    directory.  Differences are written to "result.differences"
+
+
+check-auto-race :
+	@test -d checkresults || mkdir checkresults
+	@echo 
+	@echo "check-auto-race: Checking examples."
+	@echo "  Results will be in checkresults/<example>/result.autorace.raw"
+	@echo "Running executable $(INSPECT-CC)"
+	@echo " (change with EXECUTABLE=...)"
+	@echo "Taking examples from $(FULLEXAMPLEPATH)"
+	@echo " (change with EXAMPLEPATH=...)"
+	@cwd=`pwd` ; \
+	for example in $(CHECK_EXAMPLES) ; \
+	do \
+	  if [ -f $(FULLEXAMPLEPATH)/$$example/$$example.c ] ; \
+	  then \
+	  	echo -n "Checking $$example ... " ; \
+	  	cd $$cwd ; \
+	  	if [ -d checkresults/$$example ] ; then rm -rf checkresults/$$example ; fi ; \
+	  	test -d checkresults/$$example || mkdir checkresults/$$example ; \
+		cd checkresults/$$example; \
+		if [ -f result.* ]; then rm result.*; fi; \
+		cp $(FULLEXAMPLEPATH)/$$example/$$example.c .; ls ; \
+	 	if [ -f Makefile ]; then \
+		   make clean; make CC=$(INSPECT-CC);\
+		else \
+		   echo $(INSPECT-CC) -o target $$example.c > result.compile; \
+		   $(INSPECT-CC) -o target $$example.c >> result.compile 2> result.stderr; \
+	        fi; \
+		if [ -f ./target ] ; \
+	   	then \
+		  echo $(INSPECT)  --tso-mode --max-runs 50000 ./target > result.autorace.raw ; \
+		  $(INSPECT) --tso-mode --max-runs 50000  ./target >> result.autorace.raw 2> result.stderr ; \
+		  sed -n '$(SED_CMD)' result.autorace.raw > result.autorace.filtered ; \
+                  sed -n '$(SED_TIME)' result.autorace.raw >> ../../result.stat ;\
+                  sed -n '$(SED_RUNS)' result.autorace.raw >> ../../result.stat.runs; \
+                else \
+                  echo -ne '\E[47;31m\033[1m target not produced \033[0m' ; tput sgr0; \
+		fi ; \
+		if diff result.autorace.filtered \
+		  $(FULLEXAMPLEPATH)/$$example/check_result_race_tso > result.autorace.differences;\
+		then \
+		  echo "	Passed" ; \
+		  rm result.autorace.differences ; \
+		else \
+	          echo -ne '\E[47;31m\033[1m inspect       failed \033[0m' ; tput sgr0; \
+		  echo " (more checkresults/$$example/result.autorace.differences)" ; \
+		  echo "$(INSPECT) --tso-mode ./target " ; \
+		fi ; \
+	        \
+		if [ -f $(FULLEXAMPLEPATH)/$$example/replay_inspect.xml ] ; \
+		then \
+		  $(INSPECT) --race --replay_trace \
+	                            $(FULLEXAMPLEPATH)/$$example/replay_inspect.xml \
+				    ./target > result.replay.raw 2> result.stderr ; \
+		  sed -n '$(SED_CMD)' result.replay.raw > result.replay.filtered ; \
+		  if diff result.replay.filtered \
+		    $(FULLEXAMPLEPATH)/$$example/check_result_replay >result.replay.differences;\
+		  then \
+		    echo "Replay trace passed" ; \
+		    rm result.replay.differences ; \
+		  else \
+		    echo -ne '\E[47;31m\033[1m inspect replay     failed \033[0m' ; tput sgr0; \
+		    echo " (more checkresults/$$example/result.replay.differences)" ; \
+		  fi ; \
+		fi ; \
+	  fi ; \
+	done
+
+
