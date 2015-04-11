@@ -125,7 +125,7 @@ c programs, which come from [http://www.cprover.org/wmm/esop13/experiments.shtml
 
 ```sh
      make clean
-     make check
+     make check -f Makefile.*
 ``` 
 
 
