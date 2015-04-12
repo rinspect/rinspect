@@ -1,4 +1,4 @@
-Rinspect is a tool which builds upon the popular Clang/LLVM compiler framework for handling C code written for the Linux/PThreads platform. It could support sequential memory model, total store order memory model and partial store order memory order. If test programs has loop, it should have bounded.
+Rinspect is a tool which builds upon the popular Clang/LLVM compiler framework for handling C code written for the Linux/PThreads platform. It could support sequential memory model, total store order memory model and partial store order memory order. 
 
 
 # Architecture
