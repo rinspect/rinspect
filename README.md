@@ -22,7 +22,7 @@ Rinspect is based on the inspect project developed by Formal VerIfication Group 
 # Installation
 
 
-Download the project source code from [https://github.com/nana1904/rinspect/](https://github.com/nana1904/rinspect/)
+Download the project source code from [https://github.com/rinspect/rinspect/](https://github.com/rinspect/rinspect/)
 
 All the following steps are only tested on a Linux Mint LMDE 32-bit machine. They are likely to work on Ubuntu 32-bit systems or other Linux systems, but not guaranteed. OS X system probably not be able to compile this program, but if you try, please report any problems to us.
 
