@@ -81,7 +81,7 @@ Our executable program is in src/inspect-0.3, called inspect. Following are some
 e.g.:
 
 ```sh
-../bin/inspcc -o target examples/regression-examples/TestToy/relaxer_tso.c
+../bin/inspcc -o target examples/TestToy/relaxer_tso.c
 ./inspect ./target                              # under SC, you will get 3 runs
 ./inspect --tso-mode ./target           # under TSO, you will get 4 runs
 ```
